@@ -1,0 +1,15 @@
+.venv/
+venv/
+.runtime/
+.uv-cache/
+__pycache__/
+dataset/
+.mpl-cache/
+results/cnc_full/preprocessed-*/
+results/fan_supervised/spectral_features.npz
+results/fan_segments/segment_features.npz
+results/dataset_inventory.csv
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml

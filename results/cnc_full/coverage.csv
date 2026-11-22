@@ -1,0 +1,4 @@
+machine,total_runs,scored_runs,labeled_binary,scorable_binary,normal,anomaly,positive_runs,sensors,status
+imi_vm20i,37,34,1498,1498,1173,325,19,"acc, s0, s1, s2, mtc_power, mtc_vibration",5 held-out run folds
+imi_vmx30ui,19,16,837,837,704,133,6,"s0, s2, mtc_power, mtc_vibration",5 held-out run folds
+tmf_vf10,13,13,63,63,56,7,5,"s0, s2, mtc_power, ct, mtc_load",5 held-out run folds
