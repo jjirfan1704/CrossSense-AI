@@ -1,6 +1,4 @@
 """Launch with python -m streamlit run dashboard.py."""
-from pathlib import Path
-
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +6,7 @@ import pandas as pd
 import streamlit as st
 
 from src import bearing, bearing_reference, cnc, fan, fan_segments, fan_supervised
-from src.benchmark import ROOT
+from src.benchmark import DEFAULT_BEARING_RUN, ROOT, resolve_run
 from src.alarm_policies import bearing_alarm
 from src.plant_health import (
     RECOMMENDATIONS,
@@ -265,10 +263,10 @@ try:
         model = model_pack[method]
         st.caption(f"Channel {model['channel']} at {model['rate']:g} Hz")
         uploaded = st.file_uploader("Upload an IMS vibration snapshot")
-        run_dir = Path(model["run"]) if Path(model["run"]).is_absolute() and Path(model["run"]).exists() else (ROOT / model["run"])
-        if not run_dir.exists():
-            run_dir = ROOT / "dataset/bearing/IMS/2nd_test"
-        examples = sorted([p for p in run_dir.glob("*") if p.is_file() and p.name.count(".") == 5])
+        folder = resolve_run(model["run"], DEFAULT_BEARING_RUN)
+        if folder is None:
+            st.caption(f"Snapshot folder unavailable. Place the IMS run in {DEFAULT_BEARING_RUN} or upload a snapshot.")
+        examples = sorted([p for p in folder.glob("*") if p.is_file() and p.name.count(".") == 5]) if folder else []
         sample = st.selectbox("Or choose an IMS snapshot", examples,
                               index=None, format_func=lambda path: path.name)
         source = uploaded if uploaded is not None else sample
