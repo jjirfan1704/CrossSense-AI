@@ -28,8 +28,11 @@ def check_bearing():
     table = pd.read_csv(ROOT / "results/bearing/predictions.csv")
     for method, model in models.items():
         rows = table[table.model == method]
+        run_dir = Path(model["run"])
+        if not run_dir.exists():
+            run_dir = ROOT / "dataset/bearing/IMS/2nd_test"
         for row in (rows.iloc[0], rows.iloc[-1]):
-            score, decision, *_ = bearing.predict(Path(model["run"]) / row.file, model)
+            score, decision, *_ = bearing.predict(run_dir / row.file, model)
             assert np.isclose(score, row.score), (method, score, row.score)
             assert decision == bool(row.predicted)
         print(f"Verified bearing {method}", flush=True)

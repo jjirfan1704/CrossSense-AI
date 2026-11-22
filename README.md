@@ -117,6 +117,17 @@ See [AUDIT.md](AUDIT.md) for the original pipeline review and [PRESENTATION.md](
 - [MSM Milling dataset on Kaggle](https://www.kaggle.com/datasets/manufuturetoday/multi-sensor-for-metal-milling-anomaly)
 - [MSM Milling data descriptor](https://doi.org/10.1038/s41597-026-07255-7)
 
+## Plant Health Dashboard & Verification Outputs
+
+- **Unified Plant Health & Predictive Maintenance (`src/plant_health.py` & `dashboard.py`):**
+  - Computes a normalized `0–100%` Health Index, status (`Healthy` / `Warning` / `Critical`), and maintenance recommendations across all three machines.
+  - Audited snapshot: **Fan `100.0%` (`Healthy`)**, **Bearing `49.4%` (`Critical`)**, **CNC `91.2%` (`Warning`)**.
+  - Includes a **Live Replay Simulator** (120 chronological windows per machine), **Sensor/Frequency Explainability**, **Shift Report Export** (Markdown & CSV), and **Slack Alert Dispatch**.
+- **Full Model Verification (`python -m src.verify_models`):**
+  - Fan: `section 00/01/02` × `neighbors` & `covariance` — **Verified**
+  - Bearing: `covariance` & `isolation` — **Verified**
+  - CNC: `imi_vm20i` (12 estimators), `imi_vmx30ui` (8 estimators), `tmf_vf10` (10 estimators) — **Verified**
+
 
 
 

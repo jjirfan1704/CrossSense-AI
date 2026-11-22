@@ -1,4 +1,6 @@
 """Launch with python -m streamlit run dashboard.py."""
+from pathlib import Path
+
 import joblib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,6 +10,13 @@ import streamlit as st
 from src import bearing, bearing_reference, cnc, fan, fan_segments, fan_supervised
 from src.benchmark import ROOT
 from src.alarm_policies import bearing_alarm
+from src.plant_health import (
+    RECOMMENDATIONS,
+    build_maintenance_report_md,
+    compute_plant_summary,
+    get_replay_series,
+    send_slack_alert,
+)
 
 MACHINES = {"Industrial Fan": "fan", "Industrial Bearing": "bearing",
             "CNC Milling Machine": "cnc"}
@@ -93,14 +102,51 @@ def status(value, anomalous):
 
 
 if page == "Overview":
-    st.write("Industrial condition monitoring for acoustic, vibration, and milling sensor data.")
-    for panel, (title, machine) in zip(st.columns(3), MACHINES.items()):
-        panel.subheader(title)
-        folder = ROOT / "results" / machine
-        artifact = ROOT / "models" / machine / "benchmark.joblib"
-        panel.write("Model available" if artifact.is_file() else "Awaiting trained model")
-        if (folder / "metrics.csv").is_file():
-            panel.write(", ".join(pd.read_csv(folder / "metrics.csv").model.unique()))
+    st.caption("Unified industrial condition monitoring for acoustic (MIMII DUE), vibration (NASA IMS), and CNC milling (MSM) sensors.")
+    summary = compute_plant_summary()
+    overall_health = round(sum(item["health_pct"] for item in summary) / len(summary), 1)
+    active_alerts = sum(1 for item in summary if item["status"] != "Healthy")
+    total_samples = sum(item["samples"] for item in summary)
+
+    k1, k2, k3 = st.columns(3)
+    k1.metric("Overall Plant Health", f"{overall_health}%")
+    k2.metric("Active Machine Alerts", f"{active_alerts} / {len(summary)}")
+    k3.metric("Evaluated Windows", f"{total_samples:,}")
+
+    st.subheader("Machine Health & Predictive Maintenance")
+    for panel, item in zip(st.columns(3), summary):
+        panel.subheader(item["machine"])
+        panel.metric("Health Index", f"{item['health_pct']}%", delta=item["status"],
+                     delta_color="normal" if item["status"] == "Healthy" else "inverse")
+        panel.write(f"**Latest score:** `{item['latest_score']}` (threshold `{item['threshold']}`)")
+        panel.write(f"**Recent alarm rate:** `{item['recent_alarm_rate']}%`")
+        (panel.success if item["status"] == "Healthy" else (panel.warning if item["status"] == "Warning" else panel.error))(
+            item["recommendation"]
+        )
+
+    st.subheader("Live Replay Simulator & Slack Alerts")
+    sim_col, slack_col = st.columns([2, 1])
+    with sim_col:
+        replay_machine = st.selectbox("Simulate live stream for", ["fan", "bearing", "cnc"],
+                                      format_func=lambda k: {"fan": "Industrial Fan", "bearing": "Industrial Bearing", "cnc": "CNC Milling"}[k])
+        replay_df = get_replay_series(replay_machine, limit=120)
+        if not replay_df.empty:
+            step = st.slider("Replay step (chronological window)", min_value=5, max_value=len(replay_df), value=min(40, len(replay_df)))
+            sliced = replay_df.iloc[:step].set_index("step")
+            st.line_chart(sliced[["score", "threshold"]])
+            anoms = int(sliced["predicted"].sum())
+            st.caption(f"Replayed {step} windows — {anoms} anomalies flagged ({anoms / step * 100:.1f}%).")
+    with slack_col:
+        st.markdown("**Shift Reports & Slack Dispatch**")
+        report_md = build_maintenance_report_md(summary)
+        report_csv = pd.DataFrame(summary).to_csv(index=False)
+        st.download_button("Download Shift Report (Markdown)", data=report_md, file_name="crosssense_shift_report.md", mime="text/markdown")
+        st.download_button("Download Shift Report (CSV)", data=report_csv, file_name="crosssense_shift_report.csv", mime="text/csv")
+        slack_channel = st.text_input("Slack Channel ID", value="C0CL0J5KF5X")
+        slack_token = st.text_input("Slack Bot Token (optional if env set)", type="password")
+        if st.button("Send Alert to Slack"):
+            ok, msg = send_slack_alert(summary, token=slack_token or None, channel=slack_channel)
+            (st.success if ok else st.error)(msg)
     st.stop()
 
 machine = MACHINES[page]
@@ -143,6 +189,10 @@ if machine == "cnc" and full_cnc.is_file():
         value, anomalous, scores = predict_features(row, pack, detector)
         status(value, anomalous)
         st.dataframe(pd.Series(scores, name="Sensor score").to_frame())
+        if len(scores) > 1:
+            st.markdown("**Per-sensor anomaly contribution**")
+            st.bar_chart(pd.Series(scores, name="Score"))
+        (st.warning if anomalous else st.info)(RECOMMENDATIONS["cnc"]["Critical" if anomalous else "Healthy"])
         st.caption("This example uses the model fitted on all eligible runs. Evaluation below uses held-out runs.")
         if method == "power_then_s0":
             policy_metrics = ROOT / "results/cnc_full/industrial_fallback_metrics.csv"
@@ -204,6 +254,9 @@ try:
             ax.set(xlabel="Seconds", ylabel="Log-spaced frequency band")
             st.pyplot(fig)
             plt.close(fig)
+            st.markdown("**Mean spectral energy per frequency band**")
+            st.bar_chart(pd.Series(np.mean(spectral, axis=1), name="Band energy"))
+            (st.warning if anomalous else st.info)(RECOMMENDATIONS["fan"]["Critical" if anomalous else "Healthy"])
     elif machine == "bearing":
         methods = list(model_pack)
         if benchmark == "bearing_reference":
@@ -212,7 +265,10 @@ try:
         model = model_pack[method]
         st.caption(f"Channel {model['channel']} at {model['rate']:g} Hz")
         uploaded = st.file_uploader("Upload an IMS vibration snapshot")
-        examples = sorted([p for p in (ROOT / model["run"]).glob("*") if p.is_file() and p.name.count(".") == 5])
+        run_dir = Path(model["run"]) if Path(model["run"]).is_absolute() and Path(model["run"]).exists() else (ROOT / model["run"])
+        if not run_dir.exists():
+            run_dir = ROOT / "dataset/bearing/IMS/2nd_test"
+        examples = sorted([p for p in run_dir.glob("*") if p.is_file() and p.name.count(".") == 5])
         sample = st.selectbox("Or choose an IMS snapshot", examples,
                               index=None, format_func=lambda path: path.name)
         source = uploaded if uploaded is not None else sample
