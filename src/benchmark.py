@@ -8,6 +8,28 @@ from sklearn.metrics import (accuracy_score, average_precision_score, balanced_a
                              precision_score, recall_score, roc_auc_score, roc_curve)
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_BEARING_RUN = "dataset/bearing/IMS/2nd_test"
+
+
+def portable_path(path):
+    """Keep paths inside the checkout relative so bundles survive a move."""
+    absolute = Path(path).resolve()
+    try:
+        return str(absolute.relative_to(ROOT))
+    except ValueError:
+        return str(absolute)
+
+
+def resolve_run(value, fallback=None):
+    """Resolve a saved run folder, falling back to the documented local dataset path."""
+    path = Path(value)
+    if not path.is_absolute():
+        path = ROOT / path
+    if path.is_dir():
+        return path
+    if fallback is not None and (ROOT / fallback).is_dir():
+        return ROOT / fallback
+    return None
 
 
 def classification_metrics(frame):

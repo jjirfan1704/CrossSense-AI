@@ -1,12 +1,10 @@
 """Check deployed scores against saved evaluation records and real inputs."""
-from pathlib import Path
-
 import joblib
 import numpy as np
 import pandas as pd
 
 from src import bearing, cnc, fan
-from src.benchmark import ROOT
+from src.benchmark import DEFAULT_BEARING_RUN, ROOT, resolve_run
 from src.cnc_prepare import CACHE
 
 
@@ -28,11 +26,11 @@ def check_bearing():
     table = pd.read_csv(ROOT / "results/bearing/predictions.csv")
     for method, model in models.items():
         rows = table[table.model == method]
-        run_dir = Path(model["run"])
-        if not run_dir.exists():
-            run_dir = ROOT / "dataset/bearing/IMS/2nd_test"
+        folder = resolve_run(model["run"], DEFAULT_BEARING_RUN)
+        if folder is None:
+            raise FileNotFoundError(f"Bearing snapshots are unavailable for {method}.")
         for row in (rows.iloc[0], rows.iloc[-1]):
-            score, decision, *_ = bearing.predict(run_dir / row.file, model)
+            score, decision, *_ = bearing.predict(folder / row.file, model)
             assert np.isclose(score, row.score), (method, score, row.score)
             assert decision == bool(row.predicted)
         print(f"Verified bearing {method}", flush=True)

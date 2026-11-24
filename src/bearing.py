@@ -9,7 +9,7 @@ from sklearn.covariance import LedoitWolf
 from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import RobustScaler
 
-from src.benchmark import report
+from src.benchmark import portable_path, report
 
 FEATURES = ["rms", "std", "variance", "skewness", "kurtosis", "peak_to_peak",
             "mean_square", "crest_factor", "spectral_centroid_hz", "high_band_fraction"]
@@ -68,7 +68,7 @@ def train(root, channel, rate):
                               ("isolation", IsolationForest(random_state=42))):
         estimator.fit(scaler.transform(x[:fit_end]))
         model = dict(method=method, scaler=scaler, estimator=estimator, rate=rate,
-                     channel=channel, run=str(Path(root).resolve()))
+                     channel=channel, run=portable_path(root))
         validation = score(model, x[fit_end:calibrate_end])
         model["threshold"] = float(np.quantile(validation, .95))
         models[method] = model

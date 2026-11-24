@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from src.benchmark import ROOT, report
+from src.benchmark import ROOT, portable_path, report
 
 METHODS = ("rms", "relative_rms", "relative_peak", "impact_rms", "high_band", "high_band_ratio",
            "low_band", "mid_band", "envelope_rms")
@@ -74,7 +74,7 @@ def train(root, channel=1, rate=20000):
     for feature, method in enumerate(METHODS):
         threshold = float(np.quantile(x[early:start, feature], .99))
         model = dict(feature=feature, channel=channel, rate=rate, threshold=threshold,
-                     run=str(root.resolve()))
+                     run=portable_path(root))
         models[method] = model
         row = test.assign(model=method, score=score(model, x[start:]), threshold=threshold)
         row["persistent_alarm"] = (row.score > row.threshold).rolling(3).sum().eq(3)

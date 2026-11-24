@@ -13,9 +13,17 @@ py -3.12 -m venv .venv
 
 ## Working from a GitHub clone
 
-The repository includes trained model bundles, evaluation outputs, and the dashboard. Install the dependencies in a fresh virtual environment. Raw recordings live under dataset/ and need to be obtained separately from the sources below. Fan and bearing file uploads work with the trained models. Local recording pickers and retraining require the corresponding data under dataset/. The full CNC demo can use its included interval feature table.
+The repository includes trained model bundles, evaluation outputs, and the dashboard. Install the dependencies in a fresh virtual environment. Raw recordings live under dataset/ and need to be obtained separately from the sources below. Fan and bearing file uploads work with the trained models. Local recording pickers and retraining require the corresponding data under dataset/. The bearing picker falls back to `dataset/bearing/IMS/2nd_test` when a bundle was trained elsewhere. The full CNC demo can use its included interval feature table. For the archived fan scripts, regenerate the machine-local inventory with python -m src.preprocessing before re-extracting features.
 
-For the archived fan scripts, regenerate the machine-local inventory with python -m src.preprocessing before re-extracting features.
+## Verify the installation
+
+These checks need no raw dataset. They load every saved bundle, score synthetic fan and bearing inputs, exercise all four dashboard pages and confirm the committed prediction tables match their thresholds.
+
+```powershell
+.venv/Scripts/python.exe -m pip install -r requirements-dev.txt
+.venv/Scripts/python.exe -m pytest -q
+```
+
 ## Train, evaluate and launch
 
 Each training command reads raw files, extracts features, fits detectors, evaluates held-out recordings and writes models, CSVs and figures. The current workspace also includes an MSM controller-only experiment and its held-out metrics.
